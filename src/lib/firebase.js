@@ -1,11 +1,3 @@
-// Firebase initialization.
-//
-// Replace the values below with your own Firebase project config
-// (Project settings -> General -> Your apps -> SDK setup and configuration).
-// Firestore is used for online multiplayer game state, and Firebase
-// Authentication (anonymous sign-in) gives each browser session a stable
-// player id without requiring an account.
-
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
