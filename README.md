@@ -1,0 +1,138 @@
+# Uno
+
+A web version of Uno built with React, Vite, and Tailwind CSS. Supports
+three ways to play:
+
+- **Pass and play** — 2-4 humans sharing one device, with a "pass the
+  device" gate between turns so hands stay private.
+- **Vs bots** — you against 1-3 simple AI opponents.
+- **Online** — real multiplayer over Firebase Firestore, joinable by room
+  code or from a public lobby list.
+
+## Stack
+
+- React 19 + Vite
+- Tailwind CSS v4 (via `@tailwindcss/vite`)
+- Firebase: Firestore (game state) + Anonymous Auth (stable player id per
+  browser session, no account needed)
+
+## Getting started
+
+```bash
+npm install
+npm run dev
+```
+
+Local pass-and-play and vs-bots modes work immediately with no setup.
+Online mode needs your own Firebase project — see below.
+
+## Connecting Firebase (for online play)
+
+1. Create a project at https://console.firebase.google.com
+2. Enable **Firestore Database** (any region; start in test mode while
+   developing).
+3. Enable **Authentication → Sign-in method → Anonymous**.
+4. In Project settings → General → Your apps, register a web app and copy
+   the config object into `src/lib/firebase.js`, replacing the
+   `YOUR_...` placeholders.
+5. (Recommended before sharing publicly) Deploy the security rules in
+   `firestore.rules` — see the comments in that file for the security
+   model and its limits. The short version: client-side Firestore
+   transactions stop accidental race conditions between honest players,
+   but a determined user could bypass them by calling Firestore directly.
+   For real cheat-resistance, move move-validation into a Cloud Function
+   using the same `src/game/rules.js` logic server-side.
+
+Until Firebase is configured, choosing "Play online" will show a
+connection error — local modes are unaffected.
+
+## How the game logic is organized
+
+```
+src/
+  game/
+    cards.js        card codes, deck construction, labels/scoring
+    rules.js        pure state-transition functions: play, draw, pass,
+                     call uno, catch a missed uno call. Single source of
+                     truth for legality - used by BOTH local play and the
+                     Firestore transactions for online play, so the rules
+                     can't drift between modes.
+  bots/
+    botAI.js         simple bot decision logic (built on rules.js)
+  hooks/
+    useLocalGame.js   local game loop incl. bot turn driving
+    useOnlineGame.js  Firestore subscription + auth + action dispatch
+  lib/
+    firebase.js       Firebase app init - put your config here
+    onlineGame.js      lobby/room management + transactional move writes
+  pages/
+    LocalGamePage.jsx  local mode wrapper (pass-device gating)
+    OnlineGamePage.jsx online mode wrapper (lobby -> room -> game)
+  components/
+    GameTable.jsx      shared gameplay UI for both local and online modes
+    Card.jsx, Hand.jsx, TableCenter.jsx, OpponentStrip.jsx, ...
+```
+
+`rules.js` is intentionally framework-agnostic (plain functions, JSON-safe
+state) so it can run identically inside a Firestore transaction (online)
+or a React state setter (local) — same engine, two transports.
+
+## Game state shape
+
+Each game is one Firestore document (or one local React state object)
+shaped like:
+
+```js
+{
+  players: [{ id, name, isBot }],
+  hands: { [playerId]: ["R7", "GSKIP", ...] },
+  deck: ["B3", "WILD", ...],
+  discard: ["Y9", ...],          // last element is the top card
+  currentColor: "R",              // active color, incl. chosen color after a wild
+  currentPlayerIndex: 0,
+  direction: 1,                   // 1 or -1
+  pendingDraw: 0,                 // stacked draw-2/draw-4 the next player owes
+  unoCalled: { [playerId]: true },
+  status: "playing",              // lobby | playing | round-over | game-over
+  winnerId: null,
+  turnPlayedCard: false,          // false | true | "drew"
+}
+```
+
+Card codes: `"<color><value>"` e.g. `"R7"`, `"GSKIP"`, `"BREV"`,
+`"YDRAW2"`, or colorless `"WILD"` / `"WD4"`.
+
+## Testing
+
+The rules engine (`src/game/rules.js`) has a zero-dependency test suite —
+plain Node scripts, no test framework needed, since the engine itself has
+no external dependencies:
+
+```bash
+npm test
+```
+
+This runs:
+- `actionCards.test.mjs` — Skip, Reverse (incl. the 2-player "acts as
+  skip" rule), Draw Two, Draw Two stacking, Wild Draw Four, and illegal-
+  move rejection (out of turn, color/value mismatch, bypassing a pending
+  draw stack).
+- `unoCalls.test.mjs` — calling Uno, catching a missed call, and the
+  round-over/winner path.
+- `simulation.test.mjs` — 450 randomized full games (2-4 players, driven
+  by the real bot AI) checking that the total card count always stays at
+  108 across deck + discard + all hands, and that every game actually
+  terminates rather than getting stuck.
+
+`npm run lint` runs ESLint, including React hooks rules that catch
+effect/state misuse (e.g. calling `setState` synchronously inside an
+effect - see `LocalGamePage.jsx` for the "adjust state during render"
+pattern used instead, per https://react.dev/learn/you-might-not-need-an-effect).
+
+## Building for production
+
+```bash
+npm run build
+```
+
+Deploy `dist/` to any static host (Firebase Hosting, Vercel, Netlify).

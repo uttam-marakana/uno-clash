@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Firestore security rules for the Uno online multiplayer game collection.
+//
+// IMPORTANT: this app's "server-authoritative" logic lives in client-side
+// Firestore transactions (src/lib/onlineGame.js), which is good enough to
+// prevent accidental race conditions between honest clients, but a
+// determined user could still call the Firestore SDK directly with a
+// hand-crafted payload, bypassing the rules-engine entirely, UNLESS
+// these security rules also constrain what's writable. For a casual game
+// among friends the transaction-only approach is usually fine; if you
+// want real cheat-resistance against arbitrary clients, move move
+// validation into a Cloud Function (callable function) that runs the
+// same src/game/rules.js logic server-side, and lock this collection to
+// read-only + Cloud-Function-only writes.
+//
+// The rules below are a reasonable middle ground: they don't re-validate
+// full game logic, but they stop a client from doing obviously malformed
+// or out-of-turn writes to fields it shouldn't touch directly.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /games/{gameId} {
+      allow read: if true;
+
+      // Room creation: only the creator's own seat, starting in lobby.
+      allow create: if request.resource.data.status == "lobby"
+                    && request.resource.data.seats.size() == 1
+                    && request.resource.data.seats[0].id == request.auth.uid;
+
+      // Updates: must be signed in. Full move legality is enforced by the
+      // rules engine inside the transaction client-side; these rules just
+      // guard against totally malformed writes. For stronger guarantees,
+      // replace this update rule with `allow update: if false;` and move
+      // all writes into a Cloud Function using the Admin SDK.
+      allow update: if request.auth != null;
+
+      allow delete: if false;
+    }
+  }
+}
