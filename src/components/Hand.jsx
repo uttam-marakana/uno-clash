@@ -14,8 +14,8 @@ export default function Hand({
     hand.length <= 5 ? 0 : hand.length <= 8 ? 24 : hand.length <= 12 ? 40 : 55;
 
   return (
-    <div className="flex justify-center px-2 py-2 overflow-x-auto flex-wrap gap-7.5">
-    {/* <div className="flex justify-center px-2 py-2 overflow-x-auto"> */}
+    <div className="flex justify-center px-2 py-2 overflow-x-auto flex-wrap gap-6.75">
+    {/* <div className="flex justify-center px-2 py-2 overflow-x-auto"> */} {/* -- IGNORE  gap-6.75 [  gap: 15px 18px;] -- */}
       {hand.map((card, i) => {
         const isLastCard = i === hand.length - 1;
         const onlyLastPlayable = state.turnPlayedCard === "drew";
@@ -33,7 +33,7 @@ export default function Hand({
             key={cardId}
             className="shrink-0 transition-all duration-200"
             style={{
-              marginLeft: i === 0 ? 0 : -overlap,
+              // marginLeft: i === 0 ? 0 : -overlap,
               zIndex: isSelected ? 999 : i,
               transform: isSelected ? "translateY(-16px)" : "translateY(0)",
             }}
