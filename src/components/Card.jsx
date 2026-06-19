@@ -43,7 +43,7 @@ export default function Card({
         style={style}
         aria-hidden="true"
       >
-        <span className="font-display text-uno-yellow text-[10px] tracking-widest rotate-[-12deg] opacity-70">
+        <span className="font-display text-uno-yellow text-[10px] tracking-widest -rotate-12 opacity-70">
           UNO
         </span>
       </div>

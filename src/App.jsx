@@ -43,11 +43,11 @@ export default function App() {
         />
       )}
 
-      {screen === "local-game" && localPlayers && (
+      {/* {screen === "local-game" && localPlayers && (
         <LocalGamePage players={localPlayers} onExit={handleExit} />
-      )}
+      )} */}
 
-      {screen === "online" && <OnlineGamePage onExit={handleExit} />}
+      {/* {screen === "online" && <OnlineGamePage onExit={handleExit} />} */}
     </div>
   );
 }
