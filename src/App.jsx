@@ -6,7 +6,7 @@ import OnlineGamePage from "./pages/OnlineGamePage";
 import { Analytics } from "@vercel/analytics/react"
 
 export default function App() {
-  const [screen, setScreen] = useState("home"); // home | setup | local-game | online
+  const [screen, setScreen] = useState("home");     // home | setup | local-game | online
   const [setupMode, setSetupMode] = useState(null); // "local" | "bots"
   const [localPlayers, setLocalPlayers] = useState(null);
 
