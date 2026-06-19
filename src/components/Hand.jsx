@@ -14,7 +14,8 @@ export default function Hand({
     hand.length <= 5 ? 0 : hand.length <= 8 ? 24 : hand.length <= 12 ? 40 : 55;
 
   return (
-    <div className="flex justify-center px-2 py-2 overflow-x-auto">
+    <div className="flex justify-center px-2 py-2 overflow-x-auto flex-wrap gap-7.5">
+    {/* <div className="flex justify-center px-2 py-2 overflow-x-auto"> */}
       {hand.map((card, i) => {
         const isLastCard = i === hand.length - 1;
         const onlyLastPlayable = state.turnPlayedCard === "drew";

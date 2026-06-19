@@ -50,7 +50,8 @@ export default function GameTable({
   const winner = roundOver ? state.players.find((p) => p.id === state.winnerId) : null;
 
   return (
-    <div className="relative max-w-2xl mx-auto px-3 py-6 sm:py-10 flex flex-col gap-6 min-h-screen">
+    <div className="relative px-3 py-6 sm:py-10 flex flex-col gap-6 min-h-screen">
+    {/* <div className="relative max-w-3xl mx-auto px-3 py-6 sm:py-10 flex flex-col gap-6 min-h-screen"> */}
       <div className="flex flex-wrap justify-center gap-2">
         {others.map((p) => (
           <OpponentStrip
