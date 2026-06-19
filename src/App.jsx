@@ -3,6 +3,7 @@ import HomeScreen from "./components/HomeScreen";
 import LocalSetupScreen from "./components/LocalSetupScreen";
 import LocalGamePage from "./pages/LocalGamePage";
 import OnlineGamePage from "./pages/OnlineGamePage";
+import { Analytics } from "@vercel/analytics/next"
 
 export default function App() {
   const [screen, setScreen] = useState("home"); // home | setup | local-game | online
@@ -31,6 +32,7 @@ export default function App() {
 
   return (
     <div className="felt-texture min-h-screen">
+        <Analytics />
       {screen === "home" && <HomeScreen onChooseMode={handleChooseMode} />}
 
       {screen === "setup" && (
