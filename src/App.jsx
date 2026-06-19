@@ -3,7 +3,7 @@ import HomeScreen from "./components/HomeScreen";
 import LocalSetupScreen from "./components/LocalSetupScreen";
 import LocalGamePage from "./pages/LocalGamePage";
 import OnlineGamePage from "./pages/OnlineGamePage";
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/react"
 
 export default function App() {
   const [screen, setScreen] = useState("home"); // home | setup | local-game | online
