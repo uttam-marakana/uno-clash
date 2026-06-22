@@ -7,7 +7,7 @@ import { isLegalPlay } from "../game/rules";
 // out in a clean, evenly-spaced grid instead of overflowing or wrapping
 // unpredictably.
 const GRID_COLS =
-  "grid-cols-7 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7";
+  "grid-cols-3 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7";
 
 export default function Hand({
   hand,
