@@ -27,8 +27,8 @@ export default function LocalSetupScreen({ mode, onStart, onBack }) {
   }
 
   return (
-    <div className="flex flex-col items-center gap-6 px-4 py-12 max-w-sm mx-auto">
-      <h2 className="font-display text-2xl text-card-stock">
+    <div className="flex flex-col items-center gap-5 sm:gap-6 px-4 py-8 sm:py-12 max-w-sm mx-auto">
+      <h2 className="font-display text-xl sm:text-2xl text-card-stock text-center">
         {isBots ? "Set up vs bots" : "Set up pass and play"}
       </h2>
 
