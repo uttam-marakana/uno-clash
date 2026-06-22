@@ -129,6 +129,49 @@ effect/state misuse (e.g. calling `setState` synchronously inside an
 effect - see `LocalGamePage.jsx` for the "adjust state during render"
 pattern used instead, per https://react.dev/learn/you-might-not-need-an-effect).
 
+## Recent additions
+
+- **Exit button** during gameplay, with a tap-to-confirm step (tap once
+  for a "tap again to quit" prompt, tap again to actually leave; clicking
+  elsewhere cancels it).
+- **Wild card select/deselect**: tapping a Wild or Wild Draw Four card
+  selects it without immediately opening the color picker. Tap it again
+  to deselect and pick a different card instead, or tap "confirm card" to
+  open the color picker and commit. Regular colored/number cards still
+  play instantly on tap, unchanged.
+- **5-second turn timer** for human turns (`src/hooks/useLocalGame.js`,
+  `applyTimeoutAction` in `src/game/rules.js`): if a player doesn't act in
+  time, the highest legal plain-number card is auto-played; if only
+  action/wild cards are legal (or none at all), a card is drawn instead.
+  Auto-plays/draws never use Skip, Reverse, Draw Two, or Wild cards.
+  3 consecutive misses (resets to 0 on any manual play) eliminates the
+  player — their hand is discarded and turn order continues around them.
+  If elimination leaves only one player standing, they win immediately.
+  The timer pauses entirely behind the pass-device gate in multi-human
+  local play, so nobody's clock runs while they can't see their hand yet.
+- **New color theme** ("Midnight Arcade" - deep indigo/violet table
+  instead of green felt) and a fuller responsive type/sizing scale across
+  breakpoints (added a custom `xs` breakpoint at 420px for small phones).
+  The hand of cards now lays out in a true responsive CSS grid
+  (`src/components/Hand.jsx`) instead of flex-wrap, so it stays evenly
+  spaced and never overflows from a 320px phone up through desktop, even
+  with a swollen hand after several forced draws.
+
+### A concurrency bug found during testing
+
+While verifying the turn timer in a real browser (Playwright, headless
+Chromium), pass-and-play turn order occasionally skipped a player. Root
+cause: the countdown `setInterval` id was stored in a single shared
+`ref`, so if a new timer effect ran before the previous one's cleanup had
+fired, the new interval's id overwrote the ref and the old interval was
+never cleared - it kept ticking in the background, occasionally firing an
+extra timeout for the wrong player. Fixed by having each effect instance
+capture its own interval id in a local closure variable instead of a
+shared ref, plus a defensive check that a timeout can only act on the
+player it was actually created for. Verified fixed by running the exact
+turn sequence in a real browser repeatedly (7 consecutive correct runs)
+after the change.
+
 ## Building for production
 
 ```bash
