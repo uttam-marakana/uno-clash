@@ -11,11 +11,11 @@ export default function WaitingRoomScreen({ game, playerId, onStart, onLeave }) 
   const canStart = game.seats.length >= 2;
 
   return (
-    <div className="flex flex-col items-center gap-6 px-4 py-12 max-w-sm mx-auto">
+    <div className="flex flex-col items-center gap-5 sm:gap-6 px-4 py-8 sm:py-12 max-w-sm mx-auto">
       <div className="text-center">
-        <p className="text-card-stock/50 text-xs uppercase tracking-widest">room code</p>
-        <p className="font-display text-4xl text-uno-yellow tracking-widest">{game.code}</p>
-        <p className="text-card-stock/40 text-xs mt-1">share this with friends to join</p>
+        <p className="text-card-stock/50 text-[10px] sm:text-xs uppercase tracking-widest">room code</p>
+        <p className="font-display text-3xl xs:text-4xl text-uno-yellow tracking-widest">{game.code}</p>
+        <p className="text-card-stock/40 text-[10px] sm:text-xs mt-1">share this with friends to join</p>
       </div>
 
       <div className="w-full rounded-xl border border-card-stock/15 bg-felt-2/60 p-4">
