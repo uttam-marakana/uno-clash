@@ -1,6 +1,14 @@
 import Card from "./Card";
 import { isLegalPlay } from "../game/rules";
 
+// Responsive column counts for the hand grid at each breakpoint - tuned so
+// a full starting hand (7 cards) fits on one or two rows on every screen
+// size, and a swollen hand (10-15+ cards after forced draws) still lays
+// out in a clean, evenly-spaced grid instead of overflowing or wrapping
+// unpredictably.
+const GRID_COLS =
+  "grid-cols-5 xs:grid-cols-6 sm:grid-cols-7 md:grid-cols-8 lg:grid-cols-10";
+
 export default function Hand({
   hand,
   state,
@@ -10,12 +18,10 @@ export default function Hand({
   onSelectCard,
   size = "md",
 }) {
-  const overlap =
-    hand.length <= 5 ? 0 : hand.length <= 8 ? 24 : hand.length <= 12 ? 40 : 55;
-
   return (
-    <div className="flex justify-center px-2 py-2 overflow-x-auto flex-wrap gap-6.75">
-    {/* <div className="flex justify-center px-2 py-2 overflow-x-auto"> */} {/* -- IGNORE  gap-6.75 [  gap: 15px 18px;] -- */}
+    <div
+      className={`grid ${GRID_COLS} gap-1.5 sm:gap-2 md:gap-2.5 justify-center w-full max-w-full px-2 py-2 place-items-center`}
+    >
       {hand.map((card, i) => {
         const isLastCard = i === hand.length - 1;
         const onlyLastPlayable = state.turnPlayedCard === "drew";
@@ -31,11 +37,10 @@ export default function Hand({
         return (
           <div
             key={cardId}
-            className="shrink-0 transition-all duration-200"
+            className="transition-all duration-200"
             style={{
-              // marginLeft: i === 0 ? 0 : -overlap,
               zIndex: isSelected ? 999 : i,
-              transform: isSelected ? "translateY(-16px)" : "translateY(0)",
+              transform: isSelected ? "translateY(-12px)" : "translateY(0)",
             }}
           >
             <Card
