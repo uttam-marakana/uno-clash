@@ -6,25 +6,29 @@ import {
   applyPassTurn,
   applyCallUno,
   applyCatchUnoFailure,
+  applyTimeoutAction,
   currentPlayer,
   isLegalPlay,
 } from "../game/rules";
 import { decideBotMove, botShouldCallUno } from "../bots/botAI";
 
 const BOT_MOVE_DELAY_MS = 900;
+export const TURN_TIMER_SECONDS = 5;
 
-export function useLocalGame(players) {
+export function useLocalGame(players, { timerEnabled = true } = {}) {
   const [state, setState] = useState(() => createGameState(players));
+  const [secondsLeft, setSecondsLeft] = useState(TURN_TIMER_SECONDS);
   const botTimerRef = useRef(null);
 
   const reset = useCallback(() => {
     setState(createGameState(players));
+    setSecondsLeft(TURN_TIMER_SECONDS);
   }, [players]);
 
   const playCard = useCallback((playerId, card, chosenColor) => {
     setState((s) => {
       try {
-        return applyPlayCard(s, playerId, card, chosenColor);
+        return applyPlayCard(s, playerId, card, chosenColor, true);
       } catch (err) {
         console.warn("playCard rejected:", err.message);
         return s;
@@ -69,7 +73,8 @@ export function useLocalGame(players) {
     });
   }, []);
 
-  // Drive bot turns automatically.
+  // Drive bot turns automatically. Bots are unaffected by the human turn
+  // timer - they always act on their own short delay.
   useEffect(() => {
     if (state.status !== "playing") return;
     const player = currentPlayer(state);
@@ -79,13 +84,11 @@ export function useLocalGame(players) {
       const move = decideBotMove(state, player.id);
 
       setState((s) => {
-        // Re-derive in case state shifted (defensive; single-threaded JS
-        // makes this unlikely, but keeps the function honest).
         try {
           if (move.type === "play") {
-            let next = applyPlayCard(s, player.id, move.card, move.chosenColor);
+            let next = applyPlayCard(s, player.id, move.card, move.chosenColor, true);
             const newHand = next.hands[player.id];
-            if (botShouldCallUno(newHand)) {
+            if (newHand && botShouldCallUno(newHand)) {
               next = applyCallUno(next, player.id);
             }
             return next;
@@ -107,7 +110,76 @@ export function useLocalGame(players) {
     return () => clearTimeout(botTimerRef.current);
   }, [state]);
 
-  return { state, playCard, drawCard, passTurn, callUno, catchUnoFailure, reset };
+  // Human turn countdown. Resets whenever the active player or
+  // turnPlayedCard phase changes, ticks down once per second, and
+  // triggers an auto-action via applyTimeoutAction when it hits 0.
+  // Disabled while timerEnabled is false (e.g. a pass-and-play gate is up
+  // and the current human hasn't seen their hand yet) or during a bot's
+  // turn (bots have their own pacing above).
+  const player = state.status === "playing" ? currentPlayer(state) : null;
+  const isHumanTurn = !!player && !player.isBot;
+  const currentPlayerId = player?.id ?? null;
+  const turnKey = `${state.currentPlayerIndex}:${state.turnPlayedCard}:${state.status}:${timerEnabled}`;
+
+  // Adjust-state-during-render: when the turn phase changes, the displayed
+  // countdown should immediately snap back to the full duration rather
+  // than waiting for the effect below to run on the next tick. This is
+  // the React-documented pattern for resetting state in response to a
+  // prop/derived-value change, without calling setState inside an effect.
+  const [lastTurnKey, setLastTurnKey] = useState(turnKey);
+  if (turnKey !== lastTurnKey) {
+    setLastTurnKey(turnKey);
+    setSecondsLeft(TURN_TIMER_SECONDS);
+  }
+
+  useEffect(() => {
+    if (!timerEnabled || !isHumanTurn) return;
+
+    // Capture the player this interval was created for. If a stale
+    // interval somehow ever fires after the turn has already moved on
+    // (shouldn't happen with the closure-local id below, but kept as a
+    // defensive guard), it must not act on someone else's behalf.
+    const turnPlayerId = currentPlayerId;
+
+    const intervalId = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          setState((current) => {
+            if (current.status !== "playing") return current;
+            const activePlayer = currentPlayer(current);
+            if (!activePlayer || activePlayer.isBot) return current;
+            if (activePlayer.id !== turnPlayerId) return current;
+            try {
+              return applyTimeoutAction(current, activePlayer.id);
+            } catch (err) {
+              console.warn("Timeout action rejected:", err.message);
+              return current;
+            }
+          });
+          return TURN_TIMER_SECONDS;
+        }
+        return s - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+    // turnKey captures every value this effect's behavior actually
+    // depends on (which player, which phase, whether the timer is armed)
+    // in one comparable string, so re-arming the interval on turnKey
+    // change is exactly the exhaustive-deps contract, just deduplicated.
+  }, [turnKey, timerEnabled, isHumanTurn, currentPlayerId]);
+
+  return {
+    state,
+    playCard,
+    drawCard,
+    passTurn,
+    callUno,
+    catchUnoFailure,
+    reset,
+    secondsLeft,
+    isHumanTurn,
+  };
 }
 
 export function canCurrentPlayerAct(state, playerId) {
