@@ -1,4 +1,12 @@
-import { buildDeck, cardColor, cardValue, isWild, ACTION, WILD_DRAW4 } from "./cards.js";
+import {
+  buildDeck,
+  cardColor,
+  cardValue,
+  isWild,
+  isNumber,
+  ACTION,
+  WILD_DRAW4,
+} from "./cards.js";
 
 export function shuffle(arr, rng = Math.random) {
   const a = [...arr];
@@ -39,6 +47,8 @@ export function createGameState(players, rng = Math.random) {
     direction: 1, // 1 = clockwise, -1 = counter-clockwise
     pendingDraw: 0, // accumulated draw-2/draw-4 stack the next player must take
     unoCalled: {}, // playerId -> bool, true once they've called uno at 1 card
+    missedTurns: players.reduce((acc, p) => ({ ...acc, [p.id]: 0 }), {}), // consecutive auto-played turns per player
+    eliminatedIds: [], // playerIds removed from the round for missing 3 turns in a row
     status: "playing", // playing | round-over | game-over
     winnerId: null,
     log: [`Game started. Top card: ${discardTop}`],
@@ -87,10 +97,35 @@ export function legalMoves(state, hand) {
   return hand.filter((c) => isLegalPlay(state, c));
 }
 
+function isEliminated(state, playerId) {
+  return (state.eliminatedIds || []).includes(playerId);
+}
+
+function activePlayerCount(state) {
+  return state.players.length - (state.eliminatedIds?.length || 0);
+}
+
+/**
+ * Advance `steps` active (non-eliminated) player-slots from `fromIndex`,
+ * wrapping around state.players and skipping anyone in eliminatedIds.
+ * If everyone but the current player is eliminated, returns fromIndex
+ * unchanged (caller is responsible for ending the game in that case).
+ */
 function nextIndex(state, fromIndex = state.currentPlayerIndex, steps = 1) {
   const n = state.players.length;
+  if (activePlayerCount(state) <= 1) return fromIndex;
+
   let idx = fromIndex;
-  idx = (idx + state.direction * steps + n * steps) % n;
+  let remaining = steps;
+  // Safety cap so a corrupted eliminatedIds list can't spin forever.
+  let guard = n * Math.max(steps, 1) * 4 + 8;
+
+  while (remaining > 0 && guard-- > 0) {
+    idx = (idx + state.direction + n) % n;
+    if (!isEliminated(state, state.players[idx].id)) {
+      remaining -= 1;
+    }
+  }
   return idx;
 }
 
@@ -99,7 +134,7 @@ function nextIndex(state, fromIndex = state.currentPlayerIndex, steps = 1) {
  * when the card is a wild. Returns a new state object (does not mutate).
  * Throws on illegal moves so callers (transactions, bots) can reject them.
  */
-export function applyPlayCard(state, playerId, card, chosenColor = null) {
+export function applyPlayCard(state, playerId, card, chosenColor = null, isManual = true) {
   const player = currentPlayer(state);
   if (player.id !== playerId) throw new Error("Not your turn");
 
@@ -116,7 +151,13 @@ export function applyPlayCard(state, playerId, card, chosenColor = null) {
   next.turnPlayedCard = true;
   delete next.unoCalled[playerId];
 
-  next.log = [...state.log, `${player.name} played ${card}`];
+  if (!next.missedTurns) next.missedTurns = {};
+  next.missedTurns[playerId] = isManual ? 0 : (state.missedTurns?.[playerId] || 0) + 1;
+
+  next.log = [
+    ...state.log,
+    isManual ? `${player.name} played ${card}` : `${player.name} timed out - auto-played ${card}`,
+  ];
 
   // Round-over check.
   if (next.hands[playerId].length === 0) {
@@ -126,14 +167,18 @@ export function applyPlayCard(state, playerId, card, chosenColor = null) {
     return next;
   }
 
+  if (!isManual && next.missedTurns[playerId] >= 3) {
+    return eliminatePlayer(next, playerId);
+  }
+
   // Resolve action effects.
   const value = cardValue(card);
   let advanceSteps = 1;
 
   if (value === ACTION.REVERSE) {
     next.direction = state.direction * -1;
-    // In 2-player games, reverse acts like a skip.
-    if (state.players.length === 2) advanceSteps = 2;
+    // Acts like a skip when only 2 active players remain.
+    if (activePlayerCount(next) <= 2) advanceSteps = 2;
     next.log.push("Direction reversed");
   } else if (value === ACTION.SKIP) {
     advanceSteps = 2;
@@ -154,6 +199,116 @@ export function applyPlayCard(state, playerId, card, chosenColor = null) {
 function nextPlayerName(state) {
   const idx = nextIndex(state, state.currentPlayerIndex, 1);
   return state.players[idx].name;
+}
+
+/**
+ * Remove a player from the round for missing 3 turns in a row: their
+ * hand is discarded entirely (not returned to the deck, to keep this
+ * simple and match the requested behavior), they're flagged in
+ * eliminatedIds so turn order skips them going forward, and if only one
+ * active player remains, that player wins immediately.
+ */
+function eliminatePlayer(state, playerId) {
+  const next = structuredCloneLike(state);
+  const player = next.players.find((p) => p.id === playerId);
+
+  next.hands[playerId] = [];
+  next.eliminatedIds = [...(next.eliminatedIds || []), playerId];
+  delete next.unoCalled[playerId];
+  next.log = [...next.log, `${player?.name || playerId} was eliminated after 3 missed turns`];
+
+  const remaining = next.players.filter((p) => !next.eliminatedIds.includes(p.id));
+  if (remaining.length === 1) {
+    next.status = "round-over";
+    next.winnerId = remaining[0].id;
+    next.log.push(`${remaining[0].name} wins - everyone else was eliminated!`);
+    next.turnPlayedCard = false;
+    return next;
+  }
+
+  next.currentPlayerIndex = nextIndex(next, state.currentPlayerIndex, 1);
+  next.turnPlayedCard = false;
+  return next;
+}
+
+/**
+ * Called when a player's turn timer (5s) expires without a manual action.
+ * Picks the highest-value plain NUMBER card that's currently legal to
+ * play (never an action or wild card, per house rule); if none exists,
+ * draws a card instead and ends the turn immediately (the auto-drawn
+ * card is never auto-played, even if it would've been legal - this is a
+ * "miss", not a real turn).
+ *
+ * Either branch counts as a miss: increments missedTurns[playerId], and
+ * eliminates the player if that reaches 3 in a row.
+ */
+export function applyTimeoutAction(state, playerId) {
+  const player = currentPlayer(state);
+  if (player.id !== playerId) throw new Error("Not your turn");
+
+  const hand = state.hands[playerId];
+
+  // If the player already drew this turn (turnPlayedCard === "drew") and
+  // is now stuck deciding whether to play the drawn card or pass, timing
+  // out here just passes - drawing again would create extra cards.
+  if (state.turnPlayedCard === "drew") {
+    return applyMissedTurnPass(state, playerId);
+  }
+
+  const candidates = hand.filter((c) => isNumber(c) && isLegalPlay(state, c));
+
+  if (candidates.length > 0) {
+    const best = candidates.reduce((a, b) => (Number(cardValue(b)) > Number(cardValue(a)) ? b : a));
+    return applyPlayCard(state, playerId, best, null, false);
+  }
+
+  // No legal plain-number card (either none legal at all, or only
+  // action/wild cards are legal) - draw instead, counted as a miss.
+  return applyMissedTurnDraw(state, playerId);
+}
+
+function applyMissedTurnDraw(state, playerId) {
+  const player = currentPlayer(state);
+  const next = structuredCloneLike(state);
+  const drawCount = state.pendingDraw > 0 ? state.pendingDraw : 1;
+
+  ensureDeckHasCards(next, drawCount);
+  const drawn = next.deck.splice(0, drawCount);
+  next.hands[playerId] = [...next.hands[playerId], ...drawn];
+
+  if (!next.missedTurns) next.missedTurns = {};
+  next.missedTurns[playerId] = (state.missedTurns?.[playerId] || 0) + 1;
+
+  next.log = [
+    ...next.log,
+    `${player.name} timed out - drew ${drawCount} card${drawCount > 1 ? "s" : ""}`,
+  ];
+  next.pendingDraw = 0;
+  next.turnPlayedCard = false;
+
+  if (next.missedTurns[playerId] >= 3) {
+    return eliminatePlayer(next, playerId);
+  }
+
+  next.currentPlayerIndex = nextIndex(next, state.currentPlayerIndex, 1);
+  return next;
+}
+
+function applyMissedTurnPass(state, playerId) {
+  const player = currentPlayer(state);
+  const next = structuredCloneLike(state);
+
+  if (!next.missedTurns) next.missedTurns = {};
+  next.missedTurns[playerId] = (state.missedTurns?.[playerId] || 0) + 1;
+  next.log = [...next.log, `${player.name} timed out - turn passed`];
+  next.turnPlayedCard = false;
+
+  if (next.missedTurns[playerId] >= 3) {
+    return eliminatePlayer(next, playerId);
+  }
+
+  next.currentPlayerIndex = nextIndex(next, state.currentPlayerIndex, 1);
+  return next;
 }
 
 /**
