@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node src/game/__tests__/actionCards.test.mjs && node src/game/__tests__/unoCalls.test.mjs && node src/game/__tests__/simulation.test.mjs"
+    "test": "node src/game/__tests__/actionCards.test.mjs && node src/game/__tests__/unoCalls.test.mjs && node src/game/__tests__/elimination.test.mjs && node src/game/__tests__/simulation.test.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
