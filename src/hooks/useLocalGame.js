@@ -11,19 +11,60 @@ import {
   isLegalPlay,
 } from "../game/rules";
 import { decideBotMove, botShouldCallUno } from "../bots/botAI";
+import { saveSession, loadSession, clearSession } from "../lib/gameSession";
 
 const BOT_MOVE_DELAY_MS = 900;
-export const TURN_TIMER_SECONDS = 5;
+export const TURN_TIMER_SECONDS = 15;
 
-export function useLocalGame(players, { timerEnabled = true } = {}) {
-  const [state, setState] = useState(() => createGameState(players));
+function sameRoster(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((p, i) => p.id === b[i].id && p.isBot === b[i].isBot);
+}
+
+/**
+ * @param {Array} players - the player roster for this session.
+ * @param {object} options
+ * @param {boolean} options.timerEnabled
+ * @param {string} [options.sessionMode] - "local" | "bots" | undefined.
+ *   When provided, game state is persisted to sessionStorage under this
+ *   key and restored on mount if a matching in-progress session exists
+ *   (same player roster), so a page reload doesn't lose the game.
+ */
+export function useLocalGame(players, { timerEnabled = true, sessionMode = null } = {}) {
+  const [state, setState] = useState(() => {
+    if (sessionMode) {
+      const saved = loadSession(sessionMode);
+      if (saved && sameRoster(saved.players, players) && saved.gameState?.status === "playing") {
+        return saved.gameState;
+      }
+    }
+    return createGameState(players);
+  });
   const [secondsLeft, setSecondsLeft] = useState(TURN_TIMER_SECONDS);
   const botTimerRef = useRef(null);
 
+  // Persist on every state change while the round is still live. Once a
+  // round ends, clear the saved session so a reload after a win/loss
+  // starts fresh rather than re-showing a finished round-over screen.
+  useEffect(() => {
+    if (!sessionMode) return;
+    if (state.status === "playing") {
+      saveSession(sessionMode, players, state);
+    } else {
+      clearSession(sessionMode);
+    }
+  }, [sessionMode, players, state]);
+
   const reset = useCallback(() => {
-    setState(createGameState(players));
+    const fresh = createGameState(players);
+    setState(fresh);
     setSecondsLeft(TURN_TIMER_SECONDS);
-  }, [players]);
+    if (sessionMode) saveSession(sessionMode, players, fresh);
+  }, [players, sessionMode]);
+
+  const leaveSession = useCallback(() => {
+    if (sessionMode) clearSession(sessionMode);
+  }, [sessionMode]);
 
   const playCard = useCallback((playerId, card, chosenColor) => {
     setState((s) => {
@@ -177,6 +218,7 @@ export function useLocalGame(players, { timerEnabled = true } = {}) {
     callUno,
     catchUnoFailure,
     reset,
+    leaveSession,
     secondsLeft,
     isHumanTurn,
   };
