@@ -408,7 +408,7 @@ export function scoreHand(hand) {
 
 function cardScoreSafe(card) {
   // Local import cycle avoidance - inline mirror of cardScore.
-  if (card === "WD4" || card === "WILD") return 500;
+  if (card === "WD4" || card === "WILD") return 50;
   const v = card.slice(card[0] === "W" ? 0 : 1);
   if (v === "SKIP" || v === "REV" || v === "DRAW2") return 20;
   return Number(v) || 0;
