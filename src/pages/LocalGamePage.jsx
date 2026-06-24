@@ -3,7 +3,7 @@ import { useLocalGame } from "../hooks/useLocalGame";
 import GameTable from "../components/GameTable";
 import PassDeviceGate from "../components/PassDeviceGate";
 
-export default function LocalGamePage({ players, onExit }) {
+export default function LocalGamePage({ players, mode, onExit }) {
   const humanCount = players.filter((p) => !p.isBot).length;
   const isPassAndPlay = humanCount > 1;
 
@@ -16,8 +16,21 @@ export default function LocalGamePage({ players, onExit }) {
   // hasn't even seen their hand yet, so a countdown running against them
   // unseen would be unfair. gateOpen (this render's value) is exactly
   // what useLocalGame needs as its timerEnabled flag.
-  const { state, playCard, drawCard, passTurn, callUno, catchUnoFailure, reset, secondsLeft } =
-    useLocalGame(players, { timerEnabled: gateOpen });
+  //
+  // sessionMode ("local" | "bots") tells the hook to persist game state
+  // to sessionStorage and restore it on mount, so reloading this page
+  // mid-game picks up exactly where it left off instead of dealing fresh.
+  const {
+    state,
+    playCard,
+    drawCard,
+    passTurn,
+    callUno,
+    catchUnoFailure,
+    reset,
+    leaveSession,
+    secondsLeft,
+  } = useLocalGame(players, { timerEnabled: gateOpen, sessionMode: mode });
 
   const currentPlayerObj = state.players[state.currentPlayerIndex];
   const currentId = currentPlayerObj?.id;
@@ -31,6 +44,11 @@ export default function LocalGamePage({ players, onExit }) {
   if (isPassAndPlay && lastSeenTurn !== currentId) {
     setLastSeenTurn(currentId);
     setGateOpen(!!currentPlayerObj?.isBot);
+  }
+
+  function handleExit() {
+    leaveSession();
+    onExit();
   }
 
   if (isPassAndPlay && currentPlayerObj && !currentPlayerObj.isBot && !gateOpen) {
@@ -55,7 +73,7 @@ export default function LocalGamePage({ players, onExit }) {
       onCallUno={callUno}
       onCatchFailure={catchUnoFailure}
       onRematch={reset}
-      onExit={onExit}
+      onExit={handleExit}
     />
   );
 }
