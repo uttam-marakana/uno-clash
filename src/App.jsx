@@ -1,53 +1,30 @@
-import { useState } from "react";
-import HomeScreen from "./components/HomeScreen";
-import LocalSetupScreen from "./components/LocalSetupScreen";
-import LocalGamePage from "./pages/LocalGamePage";
-import OnlineGamePage from "./pages/OnlineGamePage";
-import { Analytics } from "@vercel/analytics/react"
+import { Routes, Route, Navigate } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
+import HomePage from "./pages/HomePage";
+import BotsSetupPage from "./pages/BotsSetupPage";
+import LocalSetupPage from "./pages/LocalSetupPage";
+import PlayBotsPage from "./pages/PlayBotsPage";
+import PlayLocalPage from "./pages/PlayLocalPage";
+import OnlineLobbyPage from "./pages/OnlineLobbyPage";
+import PlayOnlinePage from "./pages/PlayOnlinePage";
 
 export default function App() {
-  const [screen, setScreen] = useState("home");     // home | setup | local-game | online
-  const [setupMode, setSetupMode] = useState(null); // "local" | "bots"
-  const [localPlayers, setLocalPlayers] = useState(null);
-
-  function handleChooseMode(mode) {
-    if (mode === "online") {
-      setScreen("online");
-    } else {
-      setSetupMode(mode);
-      setScreen("setup");
-    }
-  }
-
-  function handleStartLocal(players) {
-    setLocalPlayers(players);
-    setScreen("local-game");
-  }
-
-  function handleExit() {
-    setLocalPlayers(null);
-    setSetupMode(null);
-    setScreen("home");
-  }
-
   return (
     <div className="felt-texture min-h-screen">
-        <Analytics />
-      {screen === "home" && <HomeScreen onChooseMode={handleChooseMode} />}
+      <Analytics />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
 
-      {screen === "setup" && (
-        <LocalSetupScreen
-          mode={setupMode}
-          onStart={handleStartLocal}
-          onBack={() => setScreen("home")}
-        />
-      )}
+        <Route path="/bots" element={<BotsSetupPage />} />
+        <Route path="/local" element={<LocalSetupPage />} />
+        <Route path="/online" element={<OnlineLobbyPage />} />
 
-      {screen === "local-game" && localPlayers && (
-        <LocalGamePage players={localPlayers} onExit={handleExit} />
-      )}
+        <Route path="/play/bots" element={<PlayBotsPage />} />
+        <Route path="/play/local" element={<PlayLocalPage />} />
+        <Route path="/play/online/:code" element={<PlayOnlinePage />} />
 
-      {screen === "online" && <OnlineGamePage onExit={handleExit} />}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </div>
   );
 }
