@@ -139,7 +139,7 @@ pattern used instead, per https://react.dev/learn/you-might-not-need-an-effect).
   to deselect and pick a different card instead, or tap "confirm card" to
   open the color picker and commit. Regular colored/number cards still
   play instantly on tap, unchanged.
-- **5-second turn timer** for human turns (`src/hooks/useLocalGame.js`,
+- **15-second turn timer** for human turns (`src/hooks/useLocalGame.js`,
   `applyTimeoutAction` in `src/game/rules.js`): if a player doesn't act in
   time, the highest legal plain-number card is auto-played; if only
   action/wild cards are legal (or none at all), a card is drawn instead.
@@ -156,6 +156,22 @@ pattern used instead, per https://react.dev/learn/you-might-not-need-an-effect).
   (`src/components/Hand.jsx`) instead of flex-wrap, so it stays evenly
   spaced and never overflows from a 320px phone up through desktop, even
   with a swollen hand after several forced draws.
+- **Real URL routing** (`react-router-dom`) for every mode instead of one
+  in-memory screen state machine:
+  - `/` home, `/bots` and `/local` setup forms, `/online` lobby
+  - `/play/bots`, `/play/local` active local games
+  - `/play/online/:code` active online games, with the room code itself
+    in the URL
+  - **Reloading no longer bounces you to the home screen.** Local/bots
+    games persist their full live state (hand, score, turn, missed-turn
+    counts - everything) to `sessionStorage` (`src/lib/gameSession.js`)
+    and restore it on mount if the URL still points at an in-progress
+    game; online games just resubscribe to the same Firestore room since
+    the code is part of the URL. Visiting a `/play/...` URL with nothing
+    to resume redirects back to the matching setup screen instead of
+    crashing. A `vercel.json` rewrite is included so a hard reload on any
+    of these paths is served `index.html` rather than 404ing at the host
+    level before React Router gets a chance to run.
 
 ### A concurrency bug found during testing
 
